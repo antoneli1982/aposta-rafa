@@ -160,6 +160,63 @@
     .board-status { margin-top: 8px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
     .board-note { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .board-note strong { color: var(--text); }
+
+    /* Classificação completa, dimensionada para a casa livre do tabuleiro. */
+    .board-standings {
+      container-type: inline-size;
+      grid-area: 3 / 3;
+      display: flex;
+      flex-direction: column;
+      align-self: stretch;
+      min-width: 0;
+      padding: 9px 10px 7px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-top: 3px solid #d71920;
+      border-radius: 17px;
+      background: linear-gradient(155deg, #242424, #0d0d0d);
+      box-shadow: 0 12px 28px rgba(0,0,0,.22);
+    }
+    .board-standings-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 5px; }
+    .board-standings-head strong { color: #f9f9f9; font-size: 11px; line-height: 1.1; font-weight: 900; letter-spacing: .055em; text-transform: uppercase; }
+    .board-standings-head small { flex-shrink: 0; color: #acacac; font-size: 8px; font-weight: 800; letter-spacing: .045em; }
+    .board-standings-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 9px; line-height: 12px; }
+    .board-standings-table .col-pos { width: 25px; }
+    .board-standings-table .col-club { width: auto; }
+    .board-standings-table .col-num { width: 25px; }
+    .board-standings-table .col-points { width: 29px; }
+    .board-standings-table th { background: rgba(255,255,255,.085); color: #bebebe; padding: 3px 2px; font-size: 8px; line-height: 11px; text-align: center; letter-spacing: 0; }
+    .board-standings-table th.club-heading { text-align: left; padding-left: 4px; }
+    .board-standings-table td { padding: 1px 2px; border-top: 1px solid rgba(255,255,255,.055); font-size: 9px; line-height: 12px; text-align: center; color: #d4d4d4; }
+    .board-standings-table .club-data { text-align: left; overflow: hidden; }
+    .board-standings-table .club-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .board-standings-table .club-symbol { width: 13px; height: 13px; flex: 0 0 13px; filter: none; }
+    .board-standings-table .club-symbol img, .board-standings-table .club-symbol svg { width: 100%; height: 100%; }
+    .board-standings-table .club-name { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; font-weight: 650; }
+    .board-standings-table .club-name-short { display: none; }
+    .board-standings-table .points-data { color: #fff; font-weight: 850; }
+    .board-standings-table tr.top-four td:first-child { box-shadow: inset 2px 0 #4d9bd4; }
+    .board-standings-table tr.z4 td:first-child { box-shadow: inset 2px 0 #d71920; }
+    .board-standings-table tr.corinthians-row { background: rgba(215,25,32,.32); }
+    .board-standings-table tr.corinthians-row td { color: #fff; font-weight: 900; border-top-color: rgba(245,110,115,.28); border-bottom: 1px solid rgba(245,110,115,.4); }
+    .board-standings-table tr.corinthians-row td:first-child { box-shadow: inset 3px 0 #ff434d; color: #ff858a; }
+    .board-standings-table tr.corinthians-row .club-name { color: #fff; }
+    .board-standings-legend { display: flex; flex-wrap: wrap; gap: 5px 9px; color: #a7a7a7; font-size: 8px; line-height: 1.2; margin-top: 5px; }
+    .board-standings-legend b { color: #fff; }
+    @container (max-width: 310px) {
+      .board-standings-table .mini-deep { display: none; }
+      .board-standings-table .col-club { width: auto; }
+      .board-standings-head strong { font-size: 10px; }
+    }
+    @container (max-width: 220px) {
+      .board-standings-table .mini-extra { display: none; }
+      .board-standings-table .club-name-full { display: none; }
+      .board-standings-table .club-name-short { display: block; }
+      .board-standings-table .col-pos { width: 20px; }
+      .board-standings-table .col-num { width: 24px; }
+      .board-standings-table .col-points { width: 28px; }
+      .board-standings-legend { font-size: 7px; }
+      .board-standings-head small { font-size: 7px; }
+    }
     .footer { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
     .footer a { color: #cdd9de; text-decoration: none; border-bottom: 1px solid rgba(205,217,222,.35); }
     .error { margin: 10px 0 0; color: #ff9e9e; font-size: 12px; }
@@ -298,7 +355,36 @@
         '<div class="start-copy">CHEGADA<small>fim do campeonato</small></div>' +
         '<div class="finish-prize"><span class="cap"></span><span class="cap bite"></span></div>' +
         '<div class="board-status">duas tampas se o Timão não cair</div></div>';
-      $('lifeBoard').innerHTML = start + spaces + finish;
+      $('lifeBoard').innerHTML = start + spaces + finish + renderStandingsTable(data);
+    }
+
+    function renderStandingsTable(data) {
+      const clubs = [...(data.table || [])].sort((a, b) => Number(a.position) - Number(b.position));
+      const rows = clubs.map((team) => {
+        const place = Number(team.position);
+        const corinthians = Number(team.id) === 6 || String(team.name).toLowerCase() === 'corinthians';
+        const rowClass = [place <= 4 ? 'top-four' : '', place >= 17 ? 'z4' : '', corinthians ? 'corinthians-row' : ''].filter(Boolean).join(' ');
+        const goalDiff = Number(team.goalDiff);
+        const gd = Number.isFinite(goalDiff) ? (goalDiff > 0 ? '+' : '') + goalDiff : '—';
+        return '<tr class="' + rowClass + '"' + (corinthians ? ' aria-label="Corinthians em destaque"' : '') + '>' +
+          '<td>' + esc(place) + 'º</td>' +
+          '<td class="club-data"><div class="club-line">' + clubSymbol(team) +
+          '<span class="club-name"><span class="club-name-full">' + esc(team.name) + '</span><span class="club-name-short">' + esc(team.acronym || team.name) + '</span></span></div></td>' +
+          '<td class="points-data">' + esc(team.points) + '</td>' +
+          '<td>' + esc(team.played) + '</td>' +
+          '<td class="mini-deep">' + esc(team.wins) + '</td>' +
+          '<td class="mini-deep">' + esc(team.draws) + '</td>' +
+          '<td class="mini-deep">' + esc(team.losses) + '</td>' +
+          '<td class="mini-extra">' + esc(gd) + '</td></tr>';
+      }).join('');
+      return '<section class="board-standings board-node" aria-label="Tabela completa do Brasileirão Série A">' +
+        '<div class="board-standings-head"><strong>Classificação</strong><small>BRASILEIRÃO ' + new Date(data.updatedAt).getFullYear() + '</small></div>' +
+        (clubs.length ? '<table class="board-standings-table" aria-label="Classificação dos 20 times">' +
+          '<colgroup><col class="col-pos"><col class="col-club"><col class="col-points"><col class="col-num"><col class="col-num mini-deep"><col class="col-num mini-deep"><col class="col-num mini-deep"><col class="col-num mini-extra"></colgroup>' +
+          '<thead><tr><th scope="col">#</th><th scope="col" class="club-heading">Clube</th><th scope="col">PTS</th><th scope="col">J</th><th scope="col" class="mini-deep">V</th><th scope="col" class="mini-deep">E</th><th scope="col" class="mini-deep">D</th><th scope="col" class="mini-extra">SG</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table>' : '<p class="skeleton">Classificação indisponível.</p>') +
+        '<div class="board-standings-legend"><span><b>PTS</b> pontos</span><span><b>J</b> jogos</span><span><b>SG</b> saldo de gols</span></div>' +
+        '</section>';
     }
     function updateRoute(data, pointsOverride, scenarioText) {
       const cor = pointsOverride === null || pointsOverride === undefined ? data.corinthians : Object.assign({}, data.corinthians, { points: pointsOverride });
