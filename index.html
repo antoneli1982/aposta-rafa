@@ -395,7 +395,7 @@
       </article>
 
       <article class="panel">
-        <div class="panel-head"><div><h2>Régua do desespero</h2><p>Uma leitura bem pouco científica da tabela.</p></div><span id="livePill" class="live-pill">ao vivo</span></div>
+        <div class="panel-head"><div><h2>Régua do desespero</h2><p>Uma leitura bem pouco científica da tabela.</p></div><span id="livePill" class="live-pill" role="status">Conectando</span></div>
         <div class="route">
           <div class="route-line"></div>
           <div class="route-lanes">
@@ -427,7 +427,7 @@
       <div class="board-note"><strong>Como ler:</strong> cada quadrinho traz o símbolo do próximo adversário; o Corinthians avança até a última casa. O placar aparece quando o jogo começa ou termina. Na chegada, a aposta está decidida.</div>
     </section>
 
-    <footer class="footer"><span>Atualização automática a cada 60 segundos. Toque em “Atualizar” para consultar novamente.</span><span>Fonte: <a href="https://www.uol.com.br/esporte/futebol/campeonatos/brasileirao/" target="_blank" rel="noreferrer">UOL Esporte</a> · <a href="https://ge.globo.com/futebol/brasileirao-serie-a/" target="_blank" rel="noreferrer">ge</a></span></footer>
+    <footer class="footer"><span>Consulta automática a cada 15 segundos, conforme os dados disponibilizados pela fonte. Toque em “Atualizar” para consultar novamente.</span><span>Fonte: <a href="https://www.uol.com.br/esporte/futebol/campeonatos/brasileirao/" target="_blank" rel="noreferrer">UOL Esporte</a> · <a href="https://ge.globo.com/futebol/brasileirao-serie-a/" target="_blank" rel="noreferrer">ge</a></span></footer>
   </main>
   <script>
     const API_BASE = "https://rota-do-timao.republicaitapipoca.chatgpt.site";
@@ -538,17 +538,55 @@
     }
     function render(data) {
       state.data = data;
-      $('updatedAt').textContent = 'Atualizado ' + new Date(data.updatedAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      $('updatedAt').textContent = 'Atualizado ' + new Date(data.updatedAt).toLocaleTimeString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
       renderFixtures(data);
       renderLifeBoard(data);
       updateRoute(data, state.scenario === null ? null : data.corinthians.points + state.scenario);
     }
+    const REFRESH_INTERVAL = 15000;
+    let refreshing = false;
+    let refreshTimer;
     async function refresh() {
-      const button = $('refresh'); button.setAttribute('aria-busy','true'); button.innerHTML = '<span>↻</span> Atualizando…'; $('error').hidden = true;
-      try { const response = await fetch((location.protocol === 'file:' ? API_BASE : '') + '/api/scoreboard?ts=' + Date.now(), {cache:'no-store'}); if (!response.ok) throw new Error('status ' + response.status); render(await response.json()); }
-      catch (error) { $('error').hidden = false; $('error').textContent = 'Não foi possível consultar o UOL agora. Tente novamente em alguns segundos.'; }
-      finally { button.removeAttribute('aria-busy'); button.innerHTML = '<span>↻</span> Atualizar'; }
+      if (refreshing) return;
+      clearTimeout(refreshTimer);
+      refreshing = true;
+      const button = $('refresh');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      button.setAttribute('aria-busy', 'true');
+      button.innerHTML = '<span>↻</span> Atualizando…';
+      $('livePill').textContent = 'Consultando';
+      try {
+        const url = new URL('/api/scoreboard', API_BASE);
+        url.searchParams.set('ts', Date.now());
+        const response = await fetch(url, {cache: 'no-store', signal: controller.signal});
+        if (!response.ok) throw new Error('status ' + response.status);
+        const data = await response.json();
+        if (!data || !data.corinthians || !data.safety || !Array.isArray(data.table) ||
+            !Array.isArray(data.path) || !Number.isFinite(Date.parse(data.updatedAt))) {
+          throw new Error('Resposta de placar inválida');
+        }
+        render(data);
+        $('error').hidden = true;
+        $('livePill').textContent = 'Atualização ativa';
+      } catch (error) {
+        $('livePill').textContent = 'Sem atualização';
+        $('error').hidden = false;
+        $('error').textContent = 'Não foi possível atualizar agora. Exibindo a última consulta; nova tentativa automática em 15 segundos.';
+        console.warn('Falha na atualização do placar:', error.message);
+      } finally {
+        clearTimeout(timeout);
+        refreshing = false;
+        button.removeAttribute('aria-busy');
+        button.innerHTML = '<span>↻</span> Atualizar';
+        if (!document.hidden) refreshTimer = setTimeout(refresh, REFRESH_INTERVAL);
+      }
     }
+    document.addEventListener('visibilitychange', () => {
+      clearTimeout(refreshTimer);
+      if (!document.hidden) refresh();
+    });
+    window.addEventListener('online', () => { if (!document.hidden) refresh(); });
     $('refresh').addEventListener('click', refresh);
     document.querySelectorAll('[data-outcome]').forEach((button) => button.addEventListener('click', () => {
       state.scenario = Number(button.dataset.outcome);
@@ -560,7 +598,7 @@
     }));
     render(initialData);
     refresh();
-    setInterval(refresh, 60000);
+
   </script>
 </body>
 </html>
